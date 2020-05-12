@@ -417,19 +417,3 @@ resource "aws_alb_listener" "hasura" {
     type             = "forward"
   }
 }
-
-# -----------------------------------------------------------------------------
-# Create Route 53 record to point to the ALB
-# -----------------------------------------------------------------------------
-
-resource "aws_route53_record" "hasura" {
-  zone_id = data.aws_route53_zone.hasura.zone_id
-  name    = "${var.hasura_subdomain}.${var.domain}"
-  type    = "A"
-
-  alias {
-    name                   = aws_alb.hasura.dns_name
-    zone_id                = aws_alb.hasura.zone_id
-    evaluate_target_health = true
-  }
-}
