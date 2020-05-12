@@ -8,41 +8,6 @@ resource "aws_iam_service_linked_role" "ecs_service" {
 }
 
 # -----------------------------------------------------------------------------
-# Create the certificate
-# -----------------------------------------------------------------------------
-
-resource "aws_acm_certificate" "hasura" {
-  domain_name       = "${var.hasura_subdomain}.${var.domain}"
-  validation_method = "DNS"
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Validate the certificate
-# -----------------------------------------------------------------------------
-
-data "aws_route53_zone" "hasura" {
-  name = "${var.domain}."
-}
-
-resource "aws_route53_record" "hasura_validation" {
-  depends_on = [aws_acm_certificate.hasura]
-  name       = aws_acm_certificate.hasura.domain_validation_options[0]["resource_record_name"]
-  type       = aws_acm_certificate.hasura.domain_validation_options[0]["resource_record_type"]
-  zone_id    = data.aws_route53_zone.hasura.zone_id
-  records    = [aws_acm_certificate.hasura.domain_validation_options[0]["resource_record_value"]]
-  ttl        = 300
-}
-
-resource "aws_acm_certificate_validation" "hasura" {
-  certificate_arn         = aws_acm_certificate.hasura.arn
-  validation_record_fqdns = aws_route53_record.hasura_validation.*.fqdn
-}
-
-# -----------------------------------------------------------------------------
 # Create VPC
 # -----------------------------------------------------------------------------
 
@@ -444,9 +409,8 @@ resource "aws_alb_target_group" "hasura" {
 
 resource "aws_alb_listener" "hasura" {
   load_balancer_arn = aws_alb.hasura.id
-  port              = "443"
-  protocol          = "HTTPS"
-  certificate_arn   = aws_acm_certificate.hasura.arn
+  port              = "80"
+  protocol          = "HTTP"
 
   default_action {
     target_group_arn = aws_alb_target_group.hasura.id
