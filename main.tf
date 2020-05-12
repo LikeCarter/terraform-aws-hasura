@@ -1,13 +1,4 @@
 # -----------------------------------------------------------------------------
-# Service role allowing AWS to manage resources required for ECS
-# -----------------------------------------------------------------------------
-
-resource "aws_iam_service_linked_role" "hasura_ecs" {
-  aws_service_name = "ecs.amazonaws.com"
-  count            = var.create_iam_service_linked_role ? 1 : 0
-}
-
-# -----------------------------------------------------------------------------
 # Create VPC
 # -----------------------------------------------------------------------------
 
@@ -290,8 +281,6 @@ locals {
           awslogs-stream-prefix = "ecs"
         }
       }
-
-      environment = flatten([local.ecs_environment, var.environment])
     }
   ]
 }
