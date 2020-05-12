@@ -288,6 +288,8 @@ locals {
           awslogs-stream-prefix = "ecs"
         }
       }
+
+      environment = local.ecs_environment
     }
   ]
 }
