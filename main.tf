@@ -169,7 +169,7 @@ resource "aws_db_instance" "hasura" {
   final_snapshot_identifier   = "hasura"
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
