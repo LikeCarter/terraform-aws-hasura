@@ -253,10 +253,10 @@ locals {
       name  = "HASURA_GRAPHQL_ENABLE_CONSOLE",
       value = "${var.hasura_console_enabled}"
     },
-    {
-      name  = "HASURA_GRAPHQL_CORS_DOMAIN",
-      value = "https://${var.app_subdomain}.${var.domain}:443, https://${var.app_subdomain}.${var.domain}"
-    },
+    #{
+    #  name  = "HASURA_GRAPHQL_CORS_DOMAIN",
+    #  value = "https://${var.app_subdomain}.${var.domain}:443, https://${var.app_subdomain}.${var.domain}"
+    #},
     {
       name  = "HASURA_GRAPHQL_PG_CONNECTIONS",
       value = "100"
@@ -276,7 +276,8 @@ locals {
       portMappings = [
         {
           containerPort = 8080,
-          hostPort      = 8080
+          hostPort      = 8080,
+          protocol      = "tcp"
         }
       ]
 
