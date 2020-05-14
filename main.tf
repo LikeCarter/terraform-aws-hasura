@@ -149,13 +149,14 @@ resource "aws_db_instance" "hasura" {
   engine_version         = "10.5"
   instance_class         = var.rds_instance
   allocated_storage      = "10"
+  max_allocated_storage  = "100"
   storage_encrypted      = false
   vpc_security_group_ids = [aws_security_group.hasura_rds.id]
   db_subnet_group_name   = aws_db_subnet_group.hasura.name
   parameter_group_name   = "default.postgres10"
   multi_az               = var.multi_az
   storage_type           = "gp2"
-  publicly_accessible    = false
+  publicly_accessible    = true
 
   # snapshot_identifier       = "hasura"
   allow_major_version_upgrade = false
