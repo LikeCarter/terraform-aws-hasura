@@ -37,13 +37,18 @@ variable "hasura_admin_secret" {
   description = "The admin secret to secure hasura; for admin access"
 }
 
-variable "hasura_jwt_secret_key" {
-  description = "The secret shared key for JWT verification"
+variable "hasura_jwt_url" {
+  description = "The JWT webhook"
+}
+
+variable "hasura_claims_format" {
+  description = "The claim format"
+  default     = "json"
 }
 
 variable "hasura_jwt_secret_algo" {
   description = "The algorithm for JWT verification (HS256 or RS256)"
-  default     = "HS256"
+  default     = "RS256"
 }
 
 variable "hasura_console_enabled" {

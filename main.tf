@@ -263,7 +263,7 @@ locals {
     },
     {
       name  = "HASURA_GRAPHQL_JWT_SECRET",
-      value = "{\"type\":\"${var.hasura_jwt_secret_algo}\", \"key\": \"${var.hasura_jwt_secret_key}\"}"
+      value = "{\"type\":\"${var.hasura_jwt_secret_algo}\", \"jwk_url\": \"${var.hasura_jwt_url}\",\"claims_format\": \"${var.hasura_claims_format}\"}"
     }
   ]
 
