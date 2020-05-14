@@ -160,7 +160,7 @@ resource "aws_db_instance" "hasura" {
 
   # snapshot_identifier       = "hasura"
   allow_major_version_upgrade = false
-  auto_minor_version_upgrade  = false
+  auto_minor_version_upgrade  = true
   apply_immediately           = true
   maintenance_window          = "sun:02:00-sun:04:00"
   skip_final_snapshot         = false
