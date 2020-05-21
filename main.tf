@@ -313,7 +313,7 @@ resource "aws_alb_target_group" "okatee" {
   target_type = "ip"
 
   health_check {
-    path    = "/healthz"
+    path    = var.alb_health_url
     matcher = "200"
   }
 }

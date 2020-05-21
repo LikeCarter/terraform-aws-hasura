@@ -37,6 +37,11 @@ variable "cidr_block" {
   default     = "172.18.0.0/16"
 }
 
+variable "alb_health_url" {
+  description = "Check if container is alive at this path"
+  default     = "/health"
+}
+
 variable "container_memory" {
   description = "Task memory"
   default     = "1024"
