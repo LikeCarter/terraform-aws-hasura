@@ -7,7 +7,7 @@ data "aws_availability_zones" "available" {
 }
 
 resource "aws_vpc" "okatee" {
-  cidr_block           = "172.18.0.0/16"
+  cidr_block           = var.cidr_block
   enable_dns_hostnames = var.vpc_enable_dns_hostnames
 
   tags = {
@@ -215,8 +215,8 @@ resource "aws_ecs_task_definition" "okatee" {
   family                   = "okatee"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "256"
-  memory                   = "512"
+  cpu                      = var.container_cpu
+  memory                   = var.container_memory
   execution_role_arn       = aws_iam_role.okatee_role.arn
 
   container_definitions = jsonencode(local.ecs_container_definitions)

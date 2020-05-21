@@ -32,6 +32,24 @@ variable "docker_image" {
   description = "The docker image and version tag to deploy on ECS"
 }
 
+variable "cidr_block" {
+  description = "The Subdomain for your application that will make CORS requests to the okatee_subdomain"
+  default     = "172.18.0.0/16"
+}
+
+variable "container_memory" {
+  description = "Task memory"
+  default     = "1024"
+}
+
+variable "container_cpu" {
+  description = "Task CPU"
+  default     = "512"
+}
+
+
+
+
 variable "container_port" {
   description = "Container mapped port"
   default     = 8000
