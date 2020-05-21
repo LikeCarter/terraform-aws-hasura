@@ -6,54 +6,54 @@
 data "aws_availability_zones" "available" {
 }
 
-resource "aws_vpc" "hasura" {
-  cidr_block           = "172.17.0.0/16"
+resource "aws_vpc" "okatee" {
+  cidr_block           = "172.18.0.0/16"
   enable_dns_hostnames = var.vpc_enable_dns_hostnames
 
   tags = {
-    Name = "hasura"
+    Name = "okatee"
   }
 }
 
 # Create var.az_count private subnets for RDS, each in a different AZ
-resource "aws_subnet" "hasura_private" {
+resource "aws_subnet" "okatee_private" {
   count             = var.az_count
-  cidr_block        = cidrsubnet(aws_vpc.hasura.cidr_block, 8, count.index)
+  cidr_block        = cidrsubnet(aws_vpc.okatee.cidr_block, 8, count.index)
   availability_zone = data.aws_availability_zones.available.names[count.index]
-  vpc_id            = aws_vpc.hasura.id
+  vpc_id            = aws_vpc.okatee.id
 
   tags = {
-    Name = "hasura #${count.index} (private)"
+    Name = "okatee #${count.index} (private)"
   }
 }
 
-# Create var.az_count public subnets for Hasura, each in a different AZ
-resource "aws_subnet" "hasura_public" {
+# Create var.az_count public subnets for okatee, each in a different AZ
+resource "aws_subnet" "okatee_public" {
   count                   = var.az_count
-  cidr_block              = cidrsubnet(aws_vpc.hasura.cidr_block, 8, var.az_count + count.index)
+  cidr_block              = cidrsubnet(aws_vpc.okatee.cidr_block, 8, var.az_count + count.index)
   availability_zone       = data.aws_availability_zones.available.names[count.index]
-  vpc_id                  = aws_vpc.hasura.id
+  vpc_id                  = aws_vpc.okatee.id
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "hasura #${var.az_count + count.index} (public)"
+    Name = "okatee #${var.az_count + count.index} (public)"
   }
 }
 
 # IGW for the public subnet
-resource "aws_internet_gateway" "hasura" {
-  vpc_id = aws_vpc.hasura.id
+resource "aws_internet_gateway" "okatee" {
+  vpc_id = aws_vpc.okatee.id
 
   tags = {
-    Name = "hasura"
+    Name = "okatee"
   }
 }
 
 # Route the public subnet traffic through the IGW
 resource "aws_route" "internet_access" {
-  route_table_id         = aws_vpc.hasura.main_route_table_id
+  route_table_id         = aws_vpc.okatee.main_route_table_id
   destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.hasura.id
+  gateway_id             = aws_internet_gateway.okatee.id
 }
 
 # -----------------------------------------------------------------------------
@@ -61,10 +61,10 @@ resource "aws_route" "internet_access" {
 # -----------------------------------------------------------------------------
 
 # Internet to ALB
-resource "aws_security_group" "hasura_alb" {
-  name        = "hasura-alb"
+resource "aws_security_group" "okatee_alb" {
+  name        = "okatee-alb"
   description = "Allow access on port 443 only to ALB"
-  vpc_id      = aws_vpc.hasura.id
+  vpc_id      = aws_vpc.okatee.id
 
   ingress {
     protocol    = "tcp"
@@ -89,16 +89,16 @@ resource "aws_security_group" "hasura_alb" {
 }
 
 # ALB TO ECS
-resource "aws_security_group" "hasura_ecs" {
-  name        = "hasura-tasks"
+resource "aws_security_group" "okatee_ecs" {
+  name        = "okatee-tasks"
   description = "allow inbound access from the ALB only"
-  vpc_id      = aws_vpc.hasura.id
+  vpc_id      = aws_vpc.okatee.id
 
   ingress {
     protocol        = "tcp"
-    from_port       = "8080"
-    to_port         = "8080"
-    security_groups = [aws_security_group.hasura_alb.id]
+    from_port       = var.container_port
+    to_port         = var.host_port
+    security_groups = [aws_security_group.okatee_alb.id]
   }
 
   egress {
@@ -106,71 +106,6 @@ resource "aws_security_group" "hasura_ecs" {
     from_port   = 0
     to_port     = 0
     cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-# ECS to RDS
-resource "aws_security_group" "hasura_rds" {
-  name        = "hasura-rds"
-  description = "allow inbound access from the hasura tasks only"
-  vpc_id      = aws_vpc.hasura.id
-
-  ingress {
-    protocol        = "tcp"
-    from_port       = "5432"
-    to_port         = "5432"
-    security_groups = concat([aws_security_group.hasura_ecs.id], var.additional_db_security_groups)
-  }
-
-  egress {
-    protocol    = "-1"
-    from_port   = 0
-    to_port     = 0
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Create RDS
-# -----------------------------------------------------------------------------
-
-resource "aws_db_subnet_group" "hasura" {
-  name       = "hasura"
-  subnet_ids = aws_subnet.hasura_private.*.id
-}
-
-resource "aws_db_instance" "hasura" {
-  name                   = var.rds_db_name
-  identifier             = "hasura"
-  username               = var.rds_username
-  password               = var.rds_password
-  port                   = "5432"
-  engine                 = "postgres"
-  engine_version         = "10.5"
-  instance_class         = var.rds_instance
-  allocated_storage      = "10"
-  max_allocated_storage  = "100"
-  storage_encrypted      = false
-  vpc_security_group_ids = [aws_security_group.hasura_rds.id]
-  db_subnet_group_name   = aws_db_subnet_group.hasura.name
-  parameter_group_name   = "default.postgres10"
-  multi_az               = var.multi_az
-  storage_type           = "gp2"
-  publicly_accessible    = true
-
-  # snapshot_identifier       = "hasura"
-  allow_major_version_upgrade = false
-  auto_minor_version_upgrade  = true
-  apply_immediately           = true
-  maintenance_window          = "sun:02:00-sun:04:00"
-  skip_final_snapshot         = false
-  copy_tags_to_snapshot       = true
-  backup_retention_period     = 7
-  backup_window               = "04:00-06:00"
-  final_snapshot_identifier   = "hasura"
-
-  lifecycle {
-    prevent_destroy = false
   }
 }
 
@@ -178,7 +113,7 @@ resource "aws_db_instance" "hasura" {
 # Create ECS cluster
 # -----------------------------------------------------------------------------
 
-resource "aws_ecs_cluster" "hasura" {
+resource "aws_ecs_cluster" "okatee" {
   name = "${var.ecs_cluster_name}"
 }
 
@@ -186,15 +121,15 @@ resource "aws_ecs_cluster" "hasura" {
 # Create logging
 # -----------------------------------------------------------------------------
 
-resource "aws_cloudwatch_log_group" "hasura" {
-  name = "/ecs/hasura"
+resource "aws_cloudwatch_log_group" "okatee" {
+  name = "/ecs/okatee"
 }
 
 # -----------------------------------------------------------------------------
 # Create IAM for logging
 # -----------------------------------------------------------------------------
 
-data "aws_iam_policy_document" "hasura_log_publishing" {
+data "aws_iam_policy_document" "okatee_log_publishing" {
   statement {
     actions = [
       "logs:CreateLogStream",
@@ -202,19 +137,19 @@ data "aws_iam_policy_document" "hasura_log_publishing" {
       "logs:PutLogEventsBatch",
     ]
 
-    resources = ["arn:aws:logs:${var.region}:*:log-group:/ecs/hasura:*"]
+    resources = ["arn:aws:logs:${var.region}:*:log-group:/ecs/okatee:*"]
   }
 }
 
-resource "aws_iam_policy" "hasura_log_publishing" {
-  name        = "hasura-log-pub"
+resource "aws_iam_policy" "okatee_log_publishing" {
+  name        = "okatee-log-pub"
   path        = "/"
   description = "Allow publishing to cloudwach"
 
-  policy = data.aws_iam_policy_document.hasura_log_publishing.json
+  policy = data.aws_iam_policy_document.okatee_log_publishing.json
 }
 
-data "aws_iam_policy_document" "hasura_assume_role_policy" {
+data "aws_iam_policy_document" "okatee_assume_role_policy" {
   statement {
     actions = ["sts:AssumeRole"]
 
@@ -225,15 +160,15 @@ data "aws_iam_policy_document" "hasura_assume_role_policy" {
   }
 }
 
-resource "aws_iam_role" "hasura_role" {
-  name               = "hasura-role"
+resource "aws_iam_role" "okatee_role" {
+  name               = "okatee-role"
   path               = "/system/"
-  assume_role_policy = data.aws_iam_policy_document.hasura_assume_role_policy.json
+  assume_role_policy = data.aws_iam_policy_document.okatee_assume_role_policy.json
 }
 
-resource "aws_iam_role_policy_attachment" "hasura_role_log_publishing" {
-  role       = aws_iam_role.hasura_role.name
-  policy_arn = aws_iam_policy.hasura_log_publishing.arn
+resource "aws_iam_role_policy_attachment" "okatee_role_log_publishing" {
+  role       = aws_iam_role.okatee_role.name
+  policy_arn = aws_iam_policy.okatee_log_publishing.arn
 }
 
 # -----------------------------------------------------------------------------
@@ -243,41 +178,21 @@ resource "aws_iam_role_policy_attachment" "hasura_role_log_publishing" {
 locals {
   ecs_environment = [
     {
-      name  = "HASURA_GRAPHQL_ADMIN_SECRET",
-      value = "${var.hasura_admin_secret}"
-    },
-    {
-      name  = "HASURA_GRAPHQL_DATABASE_URL",
-      value = "postgres://${var.rds_username}:${var.rds_password}@${aws_db_instance.hasura.endpoint}/${var.rds_db_name}"
-    },
-    {
-      name  = "HASURA_GRAPHQL_ENABLE_CONSOLE",
-      value = "${var.hasura_console_enabled}"
-    },
-    #{
-    #  name  = "HASURA_GRAPHQL_CORS_DOMAIN",
-    #  value = "https://${var.app_subdomain}.${var.domain}:443, https://${var.app_subdomain}.${var.domain}"
-    #},
-    {
-      name  = "HASURA_GRAPHQL_PG_CONNECTIONS",
-      value = "100"
-    },
-    {
-      name  = "HASURA_GRAPHQL_JWT_SECRET",
-      value = "{\"type\":\"${var.hasura_jwt_secret_algo}\", \"jwk_url\": \"${var.hasura_jwt_url}\",\"claims_format\": \"${var.hasura_claims_format}\"}"
+      name  = "foo",
+      value = "bar"
     }
   ]
 
   ecs_container_definitions = [
     {
-      image       = "hasura/graphql-engine:${var.hasura_version_tag}"
-      name        = "hasura",
+      image       = "${var.docker_image}"
+      name        = "okatee",
       networkMode = "awsvpc",
 
       portMappings = [
         {
-          containerPort = 8080,
-          hostPort      = 8080,
+          containerPort = var.container_port,
+          hostPort      = var.host_port,
           protocol      = "tcp"
         }
       ]
@@ -285,7 +200,7 @@ locals {
       logConfiguration = {
         logDriver = "awslogs",
         options = {
-          awslogs-group         = "${aws_cloudwatch_log_group.hasura.name}",
+          awslogs-group         = "${aws_cloudwatch_log_group.okatee.name}",
           awslogs-region        = "${var.region}",
           awslogs-stream-prefix = "ecs"
         }
@@ -296,13 +211,13 @@ locals {
   ]
 }
 
-resource "aws_ecs_task_definition" "hasura" {
-  family                   = "hasura"
+resource "aws_ecs_task_definition" "okatee" {
+  family                   = "okatee"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "256"
   memory                   = "512"
-  execution_role_arn       = aws_iam_role.hasura_role.arn
+  execution_role_arn       = aws_iam_role.okatee_role.arn
 
   container_definitions = jsonencode(local.ecs_container_definitions)
 }
@@ -311,28 +226,28 @@ resource "aws_ecs_task_definition" "hasura" {
 # Create the ECS service
 # -----------------------------------------------------------------------------
 
-resource "aws_ecs_service" "hasura" {
+resource "aws_ecs_service" "okatee" {
   depends_on = [
-    aws_ecs_task_definition.hasura,
-    aws_cloudwatch_log_group.hasura,
-    aws_alb_listener.hasura
+    aws_ecs_task_definition.okatee,
+    aws_cloudwatch_log_group.okatee,
+    aws_alb_listener.okatee
   ]
-  name            = "hasura-service"
-  cluster         = aws_ecs_cluster.hasura.id
-  task_definition = aws_ecs_task_definition.hasura.arn
+  name            = "okatee-service"
+  cluster         = aws_ecs_cluster.okatee.id
+  task_definition = aws_ecs_task_definition.okatee.arn
   desired_count   = var.multi_az == true ? "2" : "1"
   launch_type     = "FARGATE"
 
   network_configuration {
     assign_public_ip = true
-    security_groups  = [aws_security_group.hasura_ecs.id]
-    subnets          = aws_subnet.hasura_public.*.id
+    security_groups  = [aws_security_group.okatee_ecs.id]
+    subnets          = aws_subnet.okatee_public.*.id
   }
 
   load_balancer {
-    target_group_arn = aws_alb_target_group.hasura.id
-    container_name   = "hasura"
-    container_port   = "8080"
+    target_group_arn = aws_alb_target_group.okatee.id
+    container_name   = "okatee"
+    container_port   = var.container_port
   }
 }
 
@@ -340,8 +255,8 @@ resource "aws_ecs_service" "hasura" {
 # Create the ALB log bucket
 # -----------------------------------------------------------------------------
 
-resource "aws_s3_bucket" "hasura" {
-  bucket        = "hasura-${var.region}-${var.hasura_subdomain}-${var.domain}"
+resource "aws_s3_bucket" "okatee" {
+  bucket        = "okatee-${var.region}-${var.okatee_subdomain}-${var.domain}"
   acl           = "private"
   force_destroy = "true"
 }
@@ -353,10 +268,10 @@ resource "aws_s3_bucket" "hasura" {
 data "aws_elb_service_account" "main" {
 }
 
-data "aws_iam_policy_document" "hasura" {
+data "aws_iam_policy_document" "okatee" {
   statement {
     actions   = ["s3:PutObject"]
-    resources = ["${aws_s3_bucket.hasura.arn}/alb/*"]
+    resources = ["${aws_s3_bucket.okatee.arn}/alb/*"]
 
     principals {
       type        = "AWS"
@@ -365,22 +280,22 @@ data "aws_iam_policy_document" "hasura" {
   }
 }
 
-resource "aws_s3_bucket_policy" "hasura" {
-  bucket = aws_s3_bucket.hasura.id
-  policy = data.aws_iam_policy_document.hasura.json
+resource "aws_s3_bucket_policy" "okatee" {
+  bucket = aws_s3_bucket.okatee.id
+  policy = data.aws_iam_policy_document.okatee.json
 }
 
 # -----------------------------------------------------------------------------
 # Create the ALB
 # -----------------------------------------------------------------------------
 
-resource "aws_alb" "hasura" {
-  name            = "hasura-alb"
-  subnets         = aws_subnet.hasura_public.*.id
-  security_groups = [aws_security_group.hasura_alb.id]
+resource "aws_alb" "okatee" {
+  name            = "okatee-alb"
+  subnets         = aws_subnet.okatee_public.*.id
+  security_groups = [aws_security_group.okatee_alb.id]
 
   access_logs {
-    bucket  = aws_s3_bucket.hasura.id
+    bucket  = aws_s3_bucket.okatee.id
     prefix  = "alb"
     enabled = true
   }
@@ -390,11 +305,11 @@ resource "aws_alb" "hasura" {
 # Create the ALB target group for ECS
 # -----------------------------------------------------------------------------
 
-resource "aws_alb_target_group" "hasura" {
-  name        = "hasura-alb"
-  port        = 8080
+resource "aws_alb_target_group" "okatee" {
+  name        = "okatee-alb"
+  port        = var.container_port
   protocol    = "HTTP"
-  vpc_id      = aws_vpc.hasura.id
+  vpc_id      = aws_vpc.okatee.id
   target_type = "ip"
 
   health_check {
@@ -407,13 +322,13 @@ resource "aws_alb_target_group" "hasura" {
 # Create the ALB listener
 # -----------------------------------------------------------------------------
 
-resource "aws_alb_listener" "hasura" {
-  load_balancer_arn = aws_alb.hasura.id
+resource "aws_alb_listener" "okatee" {
+  load_balancer_arn = aws_alb.okatee.id
   port              = "80"
   protocol          = "HTTP"
 
   default_action {
-    target_group_arn = aws_alb_target_group.hasura.id
+    target_group_arn = aws_alb_target_group.okatee.id
     type             = "forward"
   }
 }
