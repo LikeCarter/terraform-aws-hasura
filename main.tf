@@ -146,7 +146,7 @@ resource "aws_db_instance" "hasura" {
   password               = var.rds_password
   port                   = "5432"
   engine                 = "postgres"
-  engine_version         = "10.5"
+  engine_version         = "10.6"
   instance_class         = var.rds_instance
   allocated_storage      = "10"
   max_allocated_storage  = "100"
